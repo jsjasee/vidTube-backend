@@ -13,6 +13,8 @@
 */
 
 import mongoose, { Schema } from "mongoose";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 // Schema is a class from mongoose, you can either destructure it or use mongoose.Schema
 
 const userSchema = new Schema(
@@ -61,5 +63,52 @@ const userSchema = new Schema(
   },
   { timestamps: true }, // this auto created createdAt & updatedAt fields.
 );
+
+// PRE-HOOKS
+userSchema.pre("save", function (next) {
+  // define so that this password gets hashed ONLY when the password is modified or when the user is created
+  if (!this.modified("password")) {
+    return next(); // exit function AND pass on to the next middleware
+  }
+
+  this.password = bcrypt.hash(this.password, 10); // first args is what you want to hash, and 10 rounds is optimal
+
+  next();
+}); // NEVER use arrow function here, because we need the context so use a normal function
+// prehooks always require the next keyword because THAT IS HOW THEY PASS ON THE INFO TO THE NEXT MIDDLEWARE!
+
+// adding a method to prototype (this is slightly different from javascript like Animal.prototype.speak = some function) as this is MONGOOSE's syntax. mongoose still attaches that method to the prototype.
+userSchema.methods.isPasswordCorrect = async function (password) {
+  return await bcrypt.compare(password, this.password); // comparing password take time - USE AWAIT
+  // returns true or false depending if password matches
+};
+
+userSchema.methods.generateAccessToken = function () {
+  // short lived access token - i guess this portion is the payload? you can grab this information when you verify/decode the JWT. usually you need _id only.
+  return jwt.sign(
+    {
+      _id: this._id,
+      email: this.email,
+      username: this.username,
+      fullname: this.fullname,
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: ACCESS_TOKEN_EXPIRY },
+  );
+};
+
+userSchema.methods.generateRefreshToken = function () {
+  // longer lived refresh token
+  return jwt.sign(
+    {
+      _id: this._id,
+      email: this.email,
+      username: this.username,
+      fullname: this.fullname,
+    },
+    process.env.REFRESH_TOKEN_SECRET,
+    { expiresIn: REFRESH_TOKEN_EXPIRY },
+  );
+};
 
 export const User = mongoose.model("User", userSchema); // the convention is to name it uppercase AND singular, as "User"
