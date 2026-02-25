@@ -1,0 +1,29 @@
+{
+  "name": "vidtube",
+  "version": "1.0.0",
+  "description": "vidtube backend project to learn backend basics",
+  "keywords": [
+    "vidtube",
+    "backend",
+    "basics",
+    "udemy"
+  ],
+  "license": "ISC",
+  "author": "jason",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon src/index.js"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "prettier": "^3.8.1"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "mongoose": "^9.2.2"
+  }
+}
