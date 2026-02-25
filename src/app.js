@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 
 // IMPORT ROUTES
 import healthcheckRouter from "./routes/healthcheck.routes.js";
@@ -13,6 +14,7 @@ app.use(
     credentials: true,
   }),
 );
+app.use(cookieParser());
 
 // use common EXPRESS middleware
 app.use(express.json({ limit: "16kb" }));
