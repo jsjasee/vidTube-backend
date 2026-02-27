@@ -6,6 +6,7 @@ import {
   deleteFromCloudinary,
 } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -171,4 +172,65 @@ const loginUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, loggedInUser, "User logged in successfully"));
 });
 
-export { registerUser, loginUser };
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken; // refreshToken might come up in the body if it is an app
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "Refresh token is required.");
+  }
+
+  // in the user.models.js code file generateRefreshToken method, in the payload of the refreshToken aka JWT we have attached the _id property which we can use to query the database.
+
+  try {
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET,
+    );
+
+    // validation and checking part
+    const user = await User.findById(decodedToken?._id); // use "?" to only access _id if decodedToken is there, otherwise decodedToken._id will be undefined
+
+    if (!user) {
+      throw new ApiError(401, "Invalid refresh token.");
+    }
+
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(401, "Invalid refresh token.");
+    }
+
+    const options = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+    };
+
+    const { accessToken, refreshToken: newRefreshToken } =
+      await generateAccessAndRefreshToken(user._id); // now the refreshToken is CALLED newRefreshToken (this is changing the name of the keys)
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", newRefreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          { accessToken, refreshToken: newRefreshToken },
+          "Access token refreshed successfully.",
+        ),
+      );
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something went wrong while refreshing access token.",
+    );
+  }
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+  await User
+    .findByIdAndUpdate
+    // todo: come back after middleware (we need to attach user object/document to a 'user' key to the request, so each route don't have to query the database every single time.)
+    ();
+});
+
+export { registerUser, loginUser, refreshAccessToken };
