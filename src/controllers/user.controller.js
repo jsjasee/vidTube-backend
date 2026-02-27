@@ -370,6 +370,140 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Cover image updated successfully."));
 });
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  // we will feed the data to the user when they visit a url, so the information should be in the params
+  const { username } = req.params;
+
+  if (!username?.trim()) {
+    throw new ApiError(400, "Username is required.");
+  }
+
+  // aggregation pipeline
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel", // we collect ALL the channels that has your userId in the `channel` field, this is collecting all of YOUR subscribers
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscriptions",
+      },
+    },
+    {
+      $addFields: {
+        subscribersCount: { $size: "$subscribers" },
+        subscriptionsCount: { $size: "$subscriptions" },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] }, // we are trying to find out if the user has a 'subscriber' document since lookup returns a collection of documents. which means the user is logged in and viewing his OWN channel
+
+            then: true,
+            else: false,
+          }, // cond stands for condition
+        },
+      },
+    },
+    {
+      // Project only the necessary data
+      $project: {
+        fullName: 1,
+        email: 1,
+        username: 1,
+        subscribersCount: 1,
+        subscriptionsCount: 1,
+        avatar: 1,
+        coverImage: 1,
+        isSubscribed: 1,
+      },
+    },
+  ]);
+
+  console.log("⭐️ Channel obtained in user.controller.js: ", channel);
+  console.log(
+    "⭐️ First channel element obtained in user.controller.js: ",
+    channel[0],
+  );
+
+  if (!channel?.length) {
+    throw new ApiError(404, "Channel not found.");
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, channel[0], "Channel profile fetched successfully."),
+    );
+});
+
+const getWatchHistory = asyncHandler(async (req, res) => {
+  const user = await User.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user?._id), // make sure to give MONGOOSE OBJECT ID! cannot just give string aka req.user._id only!
+      },
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "watchHistory",
+        foreignField: "_id",
+        as: "watchHistory",
+        pipeline: [
+          {
+            // we want to find out who is the owner of that video
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              // while in the user document as we are doing this nested lookup, only return username and avatar fields.
+              pipeline: [
+                {
+                  $project: {
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $addFields: {
+              owner: { $arrayElemAt: ["$owner", 0] }, // or use $first: "$owner"
+            },
+          },
+        ],
+      }, // lookup returns a collection of documents that matches the criteria
+    },
+  ]);
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        user[0]?.watchHistory,
+        "Watch history fetched successfully.",
+      ),
+    );
+
+  // User.aggregate() ALWAYS returns an array of documents (unlike findById which returns a single doc).
+  // Even though $match narrows it to 1 user, the result is still [{ _id, watchHistory, ... }].
+  // So user[0] grabs that single user document from the array.
+});
+
 export {
   registerUser,
   loginUser,
@@ -380,4 +514,6 @@ export {
   updateAccountDetails,
   updateUserAvatar,
   updateUserCoverImage,
+  getUserChannelProfile,
+  getWatchHistory,
 };
