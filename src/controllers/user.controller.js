@@ -7,6 +7,7 @@ import {
 } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -24,6 +25,7 @@ const generateAccessAndRefreshToken = async (userId) => {
     await user.save({ validateBeforeSave: false });
     return { accessToken, refreshToken };
   } catch (error) {
+    console.log(error);
     throw new ApiError(
       500,
       "Something went wrong while generating access and refresh tokens.",
@@ -265,7 +267,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
   const isPasswordValid = await user.isPasswordCorrect(oldPassword);
 
-  if (isPasswordValid) {
+  if (!isPasswordValid) {
     throw new ApiError(401, "Old password is incorrect");
   }
 
@@ -440,11 +442,9 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Channel not found.");
   }
 
-  return res
-    .status(200)
-    .json(
-      new ApiResponse(200, channel[0], "Channel profile fetched successfully."),
-    );
+  return res.status(200).json(
+    new ApiResponse(200, channel[0], "Channel profile fetched successfully."), // aggregate will always return an array of documents, even though the match condition technically returns ONE document only. so we use [0] to select that document we want.
+  );
 });
 
 const getWatchHistory = asyncHandler(async (req, res) => {
