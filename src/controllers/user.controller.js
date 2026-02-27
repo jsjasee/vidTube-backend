@@ -7,6 +7,29 @@ import {
 } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
+const generateAccessAndRefreshToken = async (userId) => {
+  try {
+    // you need the userId to get the user document and access the mongoose methods
+    const user = await User.findById(userId);
+
+    if (!user) {
+      throw new ApiError(404, "No such user found.");
+    }
+
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something went wrong while generating access and refresh tokens.",
+    );
+  }
+};
+
 const registerUser = asyncHandler(async (req, res) => {
   const { fullName, email, username, password } = req.body;
 
@@ -96,4 +119,56 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 });
 
-export { registerUser };
+const loginUser = asyncHandler(async (req, res) => {
+  // get data from body
+  const { email, username, password } = req.body;
+
+  // validation
+  if (!email || !password) {
+    throw new ApiError(400, "Email and password are required.");
+  }
+
+  // check for user
+  const user = await User.findOne({
+    $or: [{ username }, { email }],
+  });
+
+  if (!user) {
+    throw new ApiError(404, "User not found.");
+  }
+
+  // validate password
+
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid credentials");
+  }
+
+  const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+    user._id,
+  ); // we are using mongoDB, so we have access to _id
+
+  // fire up a DB query to be really sure the user exists (failsafe); .select is used to remove fields you don't want
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken",
+  );
+
+  if (!loggedInUser) {
+    throw new ApiError(404, "User not found.");
+  }
+
+  // Send the response to user
+  const options = {
+    httpOnly: true, // this makes the cookie NON modifiable on client side
+    secure: process.env.NODE_ENV === "production", // returns true if it is in production
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(new ApiResponse(200, loggedInUser, "User logged in successfully"));
+});
+
+export { registerUser, loginUser };
