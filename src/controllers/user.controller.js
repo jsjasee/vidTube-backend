@@ -230,6 +230,7 @@ const logoutUser = asyncHandler(async (req, res) => {
   await User
     .findByIdAndUpdate
     // todo: come back after middleware (we need to attach user object/document to a 'user' key to the request, so each route don't have to query the database every single time.)
+    // if we don't attach the user, then each time we have to decode the access token -> get the user._id and query database
     ();
 });
 
