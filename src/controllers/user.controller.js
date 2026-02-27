@@ -227,11 +227,28 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
-  await User
-    .findByIdAndUpdate
-    // todo: come back after middleware (we need to attach user object/document to a 'user' key to the request, so each route don't have to query the database every single time.)
-    // if we don't attach the user, then each time we have to decode the access token -> get the user._id and query database
-    ();
+  // todo: come back after middleware (we need to attach user object/document to a 'user' key to the request, so each route don't have to query the database every single time.)
+  // if we don't attach the user, then each time we have to decode the access token -> get the user._id and query database
+  const userObtained = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        refreshToken: undefined, // set means you want to CHANGE a field, can set as empty string or null or undefined
+      },
+    },
+    { new: true }, // provide the updated document for THIS user.
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+  };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", options) // no need to provide options in clearCookie?
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged out successfully."));
 });
 
-export { registerUser, loginUser, refreshAccessToken };
+export { registerUser, loginUser, refreshAccessToken, logoutUser };
