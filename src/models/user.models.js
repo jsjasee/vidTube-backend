@@ -34,7 +34,7 @@ const userSchema = new Schema(
       lowercase: true,
       trim: true,
     },
-    fullname: {
+    fullName: {
       type: String,
       required: true,
       trim: true,
@@ -65,15 +65,24 @@ const userSchema = new Schema(
 );
 
 // PRE-HOOKS
-userSchema.pre("save", function (next) {
+userSchema.pre("save", async function () {
   // define so that this password gets hashed ONLY when the password is modified or when the user is created
-  if (!this.modified("password")) {
-    return next(); // exit function AND pass on to the next middleware
+  if (!this.isModified("password")) {
+    return; // exit function AND pass on to the next middleware
   }
 
-  this.password = bcrypt.hash(this.password, 10); // first args is what you want to hash, and 10 rounds is optimal
+  this.password = await bcrypt.hash(this.password, 10); // first args is what you want to hash, and 10 rounds is optimal. I did NOT add a callback in the function here, so it's treated like a promise regardless. WRITE AWAIT HERE AS WELL! THIS TAKES TIME.
 
-  next();
+  /*
+  the pre-hook function cannot be async if im using callback
+  bcrypt.hash(this.password, 10, (err, hash) => {
+    if (err) return next(err);
+    this.password = hash;
+    next();
+  });
+  */
+
+  // DON'T NEED TO put 'next' as an argument and then write 'next()' here for an async function!
 }); // NEVER use arrow function here, because we need the context so use a normal function
 // prehooks always require the next keyword because THAT IS HOW THEY PASS ON THE INFO TO THE NEXT MIDDLEWARE!
 
@@ -90,7 +99,7 @@ userSchema.methods.generateAccessToken = function () {
       _id: this._id,
       email: this.email,
       username: this.username,
-      fullname: this.fullname,
+      fullName: this.fullName,
     },
     process.env.ACCESS_TOKEN_SECRET,
     { expiresIn: ACCESS_TOKEN_EXPIRY },
@@ -104,7 +113,7 @@ userSchema.methods.generateRefreshToken = function () {
       _id: this._id,
       email: this.email,
       username: this.username,
-      fullname: this.fullname,
+      fullName: this.fullName,
     },
     process.env.REFRESH_TOKEN_SECRET,
     { expiresIn: REFRESH_TOKEN_EXPIRY },
