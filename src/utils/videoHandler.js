@@ -9,6 +9,12 @@ import { spawn } from "node:child_process";
 export function getDurationSeconds(filePath) {
   // We return a Promise because ffprobe runs asynchronously (finishes later)
   return new Promise((resolve, reject) => {
+    if (!filePath || typeof filePath !== "string") {
+      return reject(
+        new Error(`Invalid filePath passed to ffprobe: ${filePath}`),
+      );
+    }
+
     // Start the ffprobe program with arguments:
     // -v error                 => only show errors (no extra noise)
     // -show_entries format=duration => only output the duration field
@@ -43,6 +49,7 @@ export function getDurationSeconds(filePath) {
 
     // If ffprobe can't start at all (e.g. not installed), reject immediately
     p.on("error", (e) => {
+      console.log("ffprobe can't start: ", e);
       reject(e);
     });
 
@@ -51,6 +58,9 @@ export function getDurationSeconds(filePath) {
     p.on("close", (code) => {
       // If ffprobe failed, reject with the error output (or a fallback message)
       if (code !== 0) {
+        console.log("ffprobe stderr:", err);
+        console.log("ffprobe stdout:", out);
+
         return reject(new Error(err || `ffprobe exited ${code}`));
       }
 
