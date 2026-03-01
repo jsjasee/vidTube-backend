@@ -62,6 +62,7 @@ const addComment = asyncHandler(async (req, res) => {
     video: new mongoose.Types.ObjectId(videoId),
     content: content,
     commentedBy: new mongoose.Types.ObjectId(req.user._id),
+    owner: new mongoose.Types.ObjectId(req.user._id),
   });
 
   const commentUploaded = await Comment.findById(newComment._id);
@@ -109,6 +110,12 @@ const deleteComment = asyncHandler(async (req, res) => {
 
   if (!isValidObjectId(commentId)) {
     throw new ApiError(400, "Invalid commentId.");
+  }
+
+  const commentExtracted = await Comment.findById(commentId);
+
+  if (req.user._id.toString() !== commentExtracted.owner.toString()) {
+    throw new ApiError(401, "You are not authorized to delete this comment.");
   }
 
   const deletedComment = await Comment.findByIdAndDelete(commentId);
