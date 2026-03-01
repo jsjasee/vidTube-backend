@@ -135,7 +135,12 @@ const getLikedVideos = asyncHandler(async (req, res) => {
       },
     },
     {
-      $unwind: "videosLiked",
+      $unwind: "$videosLiked",
+    },
+    {
+      $replaceRoot: {
+        newRoot: "$videosLiked",
+      },
     },
   ]);
 
