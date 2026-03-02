@@ -124,6 +124,18 @@ const deletePlaylist = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid playlistId.");
   }
 
+  // only owner can delete their own playlist
+
+  const playlistExtracted = await Playlist.findById(playlistId);
+
+  if (!playlistExtracted) {
+    throw new ApiError(404, "Playlist not found.");
+  }
+
+  if (req.user._id.toString() !== playlistExtracted.owner.toString()) {
+    throw new ApiError(403, "You are not authorized to delete this playlist.");
+  }
+
   const deletedPlaylist = await Playlist.findByIdAndDelete(playlistId);
 
   return res
